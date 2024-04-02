@@ -6,7 +6,7 @@ This project is centered on forecasting the monthly unemployment rate of the Dis
 ## Data Source
 The dataset was obtained from FRED Economic Data, which offers extensive economic data series, including the monthly unemployment rate for various regions
 
-##Tools used
+## Tools used
 - R
 - RStudio
 - various R packages
