@@ -6,6 +6,11 @@ This project is centered on forecasting the monthly unemployment rate of the Dis
 ## Data Source
 The dataset was obtained from FRED Economic Data, which offers extensive economic data series, including the monthly unemployment rate for various regions
 
+##Tools used
+- R
+- RStudio
+- various R packages
+
 ## Methodology
 The project begins by splitting the data into a training set (first 708 entries) for model building and a test set (last 12 entries) for validation. A Box-Cox transformation was applied to stabilize variance and normalize the data. Various SARIMA models were then estimated, and the best fitting model was chosen based on the lowest AICc (Akaike Information Criterion corrected).
 
