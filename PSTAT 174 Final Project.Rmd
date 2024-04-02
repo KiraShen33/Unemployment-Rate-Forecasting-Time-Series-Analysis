@@ -1,0 +1,472 @@
+---
+title: "PSTAT 174 Final Project (unrate)"
+author: "Ruiqi Shen"
+date: "12/7/2020"
+output:
+  pdf_document:
+    latex_engine: xelatex
+---
+
+```{r}
+# Load Data
+unrate <- read.csv("/Users/shenruiqi/Desktop/UNRATE.csv")
+train <- unrate[c(1:708),2]
+test <- unrate[c(709:720),2]
+```
+
+# Original Data
+```{r}
+x = ts(train, start = c(1960,1), frequency = 12)
+ts.plot(x, main = "Plot of Train Dataset (Original Data)")
+```
+
+
+```{r}
+# Histogram
+hist(train, main = "Histogram of Unemployment Rate", xlab = "Year")
+```
+
+```{r}
+# ACF & PACF
+par(mar = c(5,5,4,2))
+
+acf(x,lag.max = 60,main = "")
+title("ACF: Original Time Series", line = -1, outer=TRUE)
+
+pacf(x,lag.max = 60,main = "")
+title("PACF: Original Time Series", line = -1, outer=TRUE)
+```
+
+# Box-Cox Transformation
+```{r}
+library(MASS)
+t = 1:length(train)
+fit = lm(train ~ t)
+bcTransform = boxcox(train ~ t,plotit = TRUE)
+lambda = bcTransform$x[which(bcTransform$y == max(bcTransform$y))]
+lambda
+```
+
+```{r}
+train.bc = (1/lambda)*(train^lambda-1)
+train.log = log(train)
+train.sqrt = sqrt(train)
+```
+
+```{r}
+op <- par(mfrow = c(2,2))
+plot.ts(train, main = "Original data") 
+plot.ts(train.bc, main = "Box-Cox Tranformed data")
+plot.ts(train.log, main = "Log Transformed data")
+plot.ts(train.sqrt, main = "Square Root Transformed data")
+```
+
+```{r}
+op <- par(mfrow = c(2,2))
+hist(train, col = "light blue", main = "Histogram; Original data", xlab = "Year")
+hist(train.bc, col = "light blue", main = "Histogram; bc(train)", xlab = "Year")
+hist(train.log, col = "light blue", main = "Histogram; ln(train)", xlab = "Year")
+hist(train.sqrt, col = "light blue", main = "Histogram; sqrt(train)", xlab = "Year")
+```
+
+```{r}
+# Decomposition
+library(ggplot2)
+library(ggfortify)
+y <- ts(as.ts(train.bc), frequency = 12)
+decomp = decompose(y)
+plot(decomp)
+```
+
+# Differencing
+```{r}
+# Transformed ACF & PACF
+par(mar = c(5,5,4,2))
+par(mfrow=c(1,2))
+
+acf(train.bc,lag.max = 60,main = "")
+pacf(train.bc,lag.max = 60,main = "")
+title("ACF & PACF: Box-Cox Transformed Time Series", line = -1, outer=TRUE)
+```
+
+```{r}
+# Origin
+var(train.bc)
+
+# Lag 1, Once
+train.bc_1 <- diff(train.bc, lag = 1)
+var(train.bc_1)
+
+# Lag 1, Twice
+# The variance becomes larger
+# Thus, we only need to differencing once at lag 1
+train.bc_1_1 = diff(train.bc_1, lag = 1)
+var(train.bc_1_1)
+```
+
+```{r}
+# There is no need to differecing at lag 12
+# The variance becomes larger than it differecing at lag 1 once
+# Thus, we only keep the results of unrate.bc_1
+train.bc_1_12 <- diff(train.bc_1, lag = 12)
+var(train.bc_1_12)
+```
+
+# The Final Result of differencing (Lag 1, Once)
+```{r}
+plot.ts(train.bc_1, main = "train.bc differenced at lag 1")
+fit <- lm(train.bc_1~as.numeric(1:length(train.bc_1)))
+abline(fit, col = "red")
+abline(h = mean(train.bc_1), col = "blue")
+```
+
+# ACF & PACF at Lag 1 
+```{r}
+par(mar = c(5,5,4,2))
+par(mfrow=c(1,2))
+acf(train.bc_1, lag.max = 60, main = "")
+pacf(train.bc_1, lag.max = 60, main = "")
+title("ACF and PACF of bc(unrate), differenced at lag 1", line = -1, outer=TRUE)
+
+
+hist(train.bc_1, col = "light blue", xlab = "", main = "Histogram; bc(unrate) differenced at lag 1")
+hist(train.bc_1, density = 20, col = "blue", xlab = "", main = "Histogram of tansformed and differenced data with normal curve", prob = TRUE)
+m <- mean(train.bc_1)
+std <- sqrt(var(train.bc_1))
+curve(dnorm(x,m,std), add = TRUE)
+```
+
+# AICc
+```{r}
+library(qpcR)
+```
+
+```{r}
+# Group 1
+# 1
+y1 <- arima(train.bc, order = c(0,1,0), seasonal = list(order = c(1,0,1), period = 12), method = "CSS-ML")
+AICc(y1)
+
+# 2, Fail
+y2 <- arima(train.bc, order = c(0,1,1), seasonal = list(order = c(1,0,1), period = 12), method = "CSS-ML")
+AICc(y2)
+
+# 3
+y3 <- arima(train.bc, order = c(0,1,2), seasonal = list(order = c(1,0,1), period = 12), method = "CSS-ML")
+AICc(y3)
+
+# 4
+y4 <- arima(train.bc, order = c(0,1,3), seasonal = list(order = c(1,0,1), period = 12), method = "CSS-ML")
+AICc(y4)
+```
+
+```{r}
+# Group 2
+# 5
+y5 <- arima(train.bc, order = c(1,1,0), seasonal = list(order = c(1,0,1), period = 12), method = "CSS-ML")
+AICc(y5)
+
+# 6
+y6 <- arima(train.bc, order = c(1,1,1), seasonal = list(order = c(1,0,1), period = 12), method = "CSS-ML")
+AICc(y6)
+
+# 7
+y7 <- arima(train.bc, order = c(1,1,2), seasonal = list(order = c(1,0,1), period = 12), method = "CSS-ML")
+AICc(y7)
+
+# 8
+y8 <- arima(train.bc, order = c(1,1,3), seasonal = list(order = c(1,0,1), period = 12), method = "CSS-ML")
+AICc(y8)
+```
+
+```{r}
+# Group 3
+# 9
+y9 <- arima(train.bc, order = c(2,1,0), seasonal = list(order = c(1,0,1), period = 12), method = "CSS-ML")
+AICc(y9)
+
+# 10
+y10 <- arima(train.bc, order = c(2,1,1), seasonal = list(order = c(1,0,1), period = 12), method = "CSS-ML")
+AICc(y10)
+
+# 11
+y11 <- arima(train.bc, order = c(2,1,2), seasonal = list(order = c(1,0,1), period = 12), method = "CSS-ML")
+AICc(y11)
+
+# 12
+y12 <- arima(train.bc, order = c(2,1,3), seasonal = list(order = c(1,0,1), period = 12), method = "CSS-ML")
+AICc(y12)
+
+```
+
+```{r}
+# Group 4
+# 13
+y9 <- arima(train.bc, order = c(3,1,0), seasonal = list(order = c(1,0,1), period = 12), method = "CSS-ML")
+AICc(y9)
+
+# 14
+y10 <- arima(train.bc, order = c(3,1,1), seasonal = list(order = c(1,0,1), period = 12), method = "CSS-ML")
+AICc(y10)
+
+# 15
+y11 <- arima(train.bc, order = c(3,1,2), seasonal = list(order = c(1,0,1), period = 12), method = "CSS-ML")
+AICc(y11)
+
+# 16
+y12 <- arima(train.bc, order = c(3,1,3), seasonal = list(order = c(1,0,1), period = 12), method = "CSS-ML")
+AICc(y12)
+```
+After manually listing the AICc, I get the result (smallest) that:
+
+1st: p = 2, q = 2, AICc = -3641.492 (#11)
+
+2nd: p = 1, q = 3, AICc = -3640.48  (#08)
+
+3rd: p = 3, q = 2, AICc = -3640.142 (#15)
+
+Compare the second smallest AICc with the third smallest AICc, I would like to choose the second one because of parsimony.
+
+# Model 1: \(SARIMA(p = 2，d = 1，q = 2) × (P = 1，D = 0，Q = 1)_{12}\)
+```{r}
+# Origin
+fit1 = arima(train.bc, order = c(2,1,2), seasonal = list(order = c(1,0,1), period = 12), method = "CSS-ML")
+fit1
+AICc(fit1)
+```
+
+```{r}
+# Fixed
+# AICc becomes larger
+# Do not use this one
+
+fixed.fit1 = arima(train.bc, order = c(2,1,2), seasonal = list(order = c(1,0,1), period = 12), fixed = c(NA,0,NA,NA,NA,NA), method = "CSS-ML")
+fixed.fit1
+AICc(fixed.fit1)
+```
+
+# Model 1 - Diagnostic Checking
+```{r}
+model1 <- arima(train.bc, order = c(2,1,2), seasonal = list(order = c(1,0,1), period = 12), method = "CSS-ML")
+```
+
+```{r}
+res1 = residuals(model1)
+mean(res1)
+var(res1)
+```
+
+```{r}
+par(mar = c(5,5,4,2))
+layout(matrix(c(1,1,2,3),2,2,byrow=T)) 
+ts.plot(res1,main = "Fitted Residuals") 
+t = 1:length(res1)
+fit.res1 = lm(res1~t)
+abline(fit.res1)
+abline(h = mean(res1), col = "red")
+# acf
+acf(res1,main = "Autocorrelation")
+# pacf
+pacf(res1,main = "Partial Autocorrelation")
+```
+
+```{r}
+# Test for normality of residuals
+shapiro.test(res1)
+```
+Conclusion: Do not pass the shapiro test!!!
+
+```{r}
+# Test for independence of residuals
+Box.test(res1, lag = 27, type = c("Box-Pierce"), fitdf = 4)
+Box.test(res1, lag = 27, type = c("Ljung-Box"), fitdf = 4)
+Box.test(res1^2, lag = 27, type = c("Ljung-Box"), fitdf = 0)
+```
+Box-Pierce Test: Pass, p-value = 0.5423 > 0.05
+
+Ljung-Box Test: Pass, p-value = 0.5072 > 0.05
+
+McLeod-Li Test: Fail, p-value = 6.118e-06 < 0.05
+
+Conclusion: Do not pass the McLeod-Li test!!!
+
+```{r}
+par(mfrow=c(1,2))
+
+# Histogram
+hist(res1, density = 20, breaks = 20, col = "blue", xlab = "", main = "Histogram", probability = TRUE)
+m <- mean(res1)
+std <- sqrt(var(res1))
+curve(dnorm(x, m, std), add = TRUE)
+
+# q-q plot
+qqnorm(res1)
+qqline(res1, col = "blue")
+```
+
+```{r}
+ar(res1, aic = TRUE, order.max = NULL, method = c("yule-walker"))
+```
+Conclusion: The model1 fail to pass both Shapiro test and McLeod-Li test.
+
+```{r}
+library(UnitCircle)
+# Check AR part of Model 1 for Stationary
+uc.check(pol_ = c(1, -1.2158, 0.2894), plot_output = TRUE)
+# Check MA Part for Model 1 for Invertibility and causality
+uc.check(pol_ = c(1, -1.3169, 0.5132), plot_output = TRUE)
+```
+
+# Model 2: \(SARIMA(p = 1，d = 1，q = 3) × (P = 1，D = 0，Q = 1)_{12}\)
+```{r}
+# Origin
+fit2 = arima(train.bc, order = c(1,1,3), seasonal = list(order = c(1,0,1), period = 12), method = "CSS-ML")
+fit2
+AICc(fit2)
+```
+
+```{r} 
+# Fixed
+# AICc becomes larger
+# Do not use this one
+final.fit2 = arima(train.bc, order = c(1,1,3), seasonal = list(order = c(1,0,1), period = 12), fixed = c(NA,NA,NA,0,NA,NA), method = "CSS-ML")
+final.fit2
+AICc(final.fit2)
+```
+
+# Model 2 - Diagnostic Checking
+```{r}
+model2 <- arima(train.bc, order = c(1,1,3), seasonal = list(order = c(1,0,1), period = 12), method = "CSS-ML")
+```
+
+```{r}
+res2 = residuals(model2)
+mean(res2)
+var(res2)
+```
+
+```{r}
+par(mar = c(5,5,4,2))
+layout(matrix(c(1,1,2,3),2,2,byrow=T)) 
+ts.plot(res2,main = "Fitted Residuals") 
+t = 1:length(res2)
+fit.res2 = lm(res2~t)
+abline(fit.res1)
+abline(h = mean(res2), col = "red")
+# acf
+acf(res2,main = "Autocorrelation")
+# pacf
+pacf(res2,main = "Partial Autocorrelation")
+```
+
+```{r}
+# Test for normality of residuals
+shapiro.test(res2)
+```
+Conclusion: Do not pass the shapiro test!!!
+
+```{r}
+# Test for independence of residuals
+Box.test(res2, lag = 27, type = c("Box-Pierce"), fitdf = 4)
+Box.test(res2, lag = 27, type = c("Ljung-Box"), fitdf = 4)
+Box.test(res2^2, lag = 27, type = c("Ljung-Box"), fitdf = 0)
+```
+Box-Pierce Test: Pass, p-value = 0.5333 > 0.05
+
+Ljung-Box Test: Pass, p-value = 0.499 > 0.05
+
+McLeod-Li Test: Fail, p-value = 5.482e-06 < 0.05
+
+Conclusion: Do not pass the McLeod-Li test!!!
+
+```{r}
+par(mfrow=c(1,2))
+
+# Histogram
+hist(res2, density = 20, breaks = 20, col = "blue", xlab = "", main = "Histogram", probability = TRUE)
+m <- mean(res2)
+std <- sqrt(var(res2))
+curve(dnorm(x, m, std), add = TRUE)
+
+# q-q plot
+qqnorm(res2)
+qqline(res2, col = "blue")
+```
+
+```{r}
+ar(res2, aic = TRUE, order.max = NULL, method = c("yule-walker"))
+```
+Conclusion: The model1 fail to pass both Shapiro test and McLeod-Li test.
+
+```{r}
+library(UnitCircle)
+# Check AR part of Model 2 for Stationary
+# between (-1, 1)
+# There is no need to check for the AR Part
+
+# Check MA Part for Model 2 for Invertibility and causality
+uc.check(pol_ = c(1, -1.0167, 0.2085, 0.0623), plot_output = TRUE)
+```
+Conclusion: The model1 fail to pass both Shapiro test and McLeod-Li test.
+
+Final Model Decision - Summary:
+
+Both Model 1 and Model 2 do not pass the Shapiro and McLeod-Li test.
+
+I would like to choose the the Model 1 since it has the lowest AICc.
+
+# Forecast
+```{r}
+final.fit <- arima(train.bc, order = c(2,1,2), seasonal = list(order = c(1,0,1), period = 12), method = "CSS-ML")
+```
+
+```{r}
+library(forecast)
+# Forecast on Transformed Data
+pred.tr = predict(final.fit, n.ahead = 12)
+forecast(final.fit)
+U.tr = pred.tr$pred + 2*pred.tr$se 
+L.tr = pred.tr$pred - 2*pred.tr$se 
+plot.ts (train.bc, xlim = c(1,length(train.bc)+12), ylim = c(1,2), main = "Forecast of Transformed Data")
+lines(U.tr, col = "blue", lty = "dashed")
+lines(L.tr, col = "blue", lty = "dashed")
+points((length(train.bc)+1):(length(train.bc)+12), pred.tr$pred, col = "red")
+
+# Forecast on Original Data
+pred.or <- (pred.tr$pred*lambda + 1)^(1/lambda)
+U = (U.tr*lambda + 1)^(1/lambda)
+L = (L.tr*lambda + 1)^(1/lambda)
+plot.ts (train, xlim = c(1,length(train)+12), ylim = c(1,12), main = "Forecast of Original Data")
+lines(U, col = "blue", lty = "dashed")
+lines(L, col = "blue", lty = "dashed")
+points((length(train)+1):(length(train)+12), pred.or, col = "red")
+
+# Zoom the Graph (Starting from entry 670)
+plot.ts (train, xlim = c(670,length(train)+12), ylim = c(1,max(U)), main = "Zoomed Forecast of Original Data")
+lines(U, col = "blue", lty = "dashed")
+lines(L, col = "blue", lty = "dashed")
+points((length(train)+1):(length(train)+12), pred.or, col = "red")
+
+# Zoomed Forecast and True Values (in unrate)
+data <- unrate[c(1:720),2]
+plot.ts (data, xlim = c(670,length(train)+12), ylim = c(1,max(U)), col = "gray30", main = "Zoomed Forecast of Original Data w/ Test Dataset")
+lines(U, col = "blue", lty = "dashed")
+lines(L, col = "blue", lty = "dashed")
+points((length(train)+1):(length(train)+12), pred.or, col = "red")
+points((length(train)+1):(length(train)+12), test, col = "black")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
